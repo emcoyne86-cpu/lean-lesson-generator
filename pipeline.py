@@ -75,7 +75,8 @@ For each step:
 Also extract:
   - lesson title
   - standards (CCSS or state standard codes)
-  - objective (what students will be able to do, "I can..." format)
+  - objective (what students will be able to do, "I can..." format — include all targets)
+  - key_vocabulary (list of key vocabulary words or phrases introduced in the lesson)
   - materials (specific texts, handouts, manipulatives)
 
 Your response must be ONLY a valid JSON object — no explanation, no prose, no markdown fences. Start your response with { and end with }.
@@ -90,6 +91,7 @@ Your response must be ONLY a valid JSON object — no explanation, no prose, no 
   "duration": "60 minutes",
   "standards": ["CCSS.ELA-LITERACY.RL.4.1"],
   "objective": "I can...",
+  "key_vocabulary": ["word1", "word2"],
   "materials": ["..."],
   "sections": [
     {
