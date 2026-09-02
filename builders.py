@@ -128,12 +128,8 @@ def _make_header_table(doc, lesson_data):
     doc.add_paragraph()
 
 
-def _make_section_table(doc):
-    """One continuous table per section, fixed 3-column layout."""
-    gap = doc.add_paragraph()
-    gap.paragraph_format.space_before = Pt(6)
-    gap.paragraph_format.space_after  = Pt(0)
-
+def _make_lesson_table(doc):
+    """One single continuous table for the entire lesson."""
     tbl = doc.add_table(rows=0, cols=3)
     tbl.style = "Table Grid"
     tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
@@ -142,7 +138,6 @@ def _make_section_table(doc):
     tblLayout = OxmlElement("w:tblLayout")
     tblLayout.set(qn("w:type"), "fixed")
     tblPr.append(tblLayout)
-    # Explicit table width = 7.0"
     tblW = OxmlElement("w:tblW")
     tblW.set(qn("w:w"), str(int(Inches(7.0).twips)))
     tblW.set(qn("w:type"), "dxa")
@@ -200,8 +195,13 @@ def _add_step_to_table(tbl, step, show_scaffold=False):
         _set_col_width(c, COL_C)
         c.text = ""
         cp = c.paragraphs[0]
-        cr1 = cp.add_run("Anticipated Response:\n")
+        cr1 = cp.add_run("Anticipated Response:")
         cr1.bold = True; cr1.font.size = Pt(8); cr1.font.color.rgb = TEAL
+        anticipated = step.get("anticipated_response", "")
+        if anticipated:
+            cp.add_run("\n")
+            cr2 = cp.add_run(anticipated)
+            cr2.font.size = Pt(9); cr2.font.italic = True
     else:
         # Merge B + C → wide content cell
         b = row.cells[1]
@@ -265,8 +265,9 @@ def _build_doc(lesson_data: dict, label: str, show_scaffold: bool) -> bytes:
 
     _make_header_table(doc, lesson_data)
 
+    # One continuous table for the entire lesson
+    tbl = _make_lesson_table(doc)
     for section_data in lesson_data.get("sections", []):
-        tbl = _make_section_table(doc)
         _add_section_hdr_row(tbl, section_data["name"], section_data.get("duration", ""))
         for step in section_data.get("steps", []):
             _add_step_to_table(tbl, step, show_scaffold=show_scaffold)
