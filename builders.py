@@ -106,26 +106,35 @@ def _cell_text(cell, text, bold=False, italic=False, color=None, size=10, align=
 
 
 def _make_header_table(doc, lesson_data):
-    tbl = doc.add_table(rows=4, cols=2)
+    vocab = lesson_data.get("key_vocabulary", [])
+    vocab_str = ",  ".join(vocab) if isinstance(vocab, list) else str(vocab)
+    materials = lesson_data.get("materials", [])
+    materials_str = "\n".join(f"• {m}" for m in materials) if isinstance(materials, list) else str(materials)
+
+    meta = [
+        ("Lesson Title",      lesson_data.get("title", "")),
+        ("Curriculum",        f"{lesson_data.get('curriculum','')}  |  {lesson_data.get('unit','')}  |  {lesson_data.get('lesson','')}"),
+        ("Grade / Subject",   f"Grade {lesson_data.get('grade','')}  |  {lesson_data.get('subject','')}"),
+        ("Duration",          lesson_data.get("duration", "")),
+        ("Standards",         "  ·  ".join(lesson_data.get("standards", []))),
+        ("Learning Targets",  lesson_data.get("objective", "")),
+        ("Key Vocabulary",    vocab_str),
+        ("Materials",         materials_str),
+    ]
+
+    tbl = doc.add_table(rows=len(meta), cols=2)
     tbl.style = "Table Grid"
     tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
 
-    meta = [
-        ("Curriculum", f"{lesson_data.get('curriculum','')} | {lesson_data.get('unit','')} | {lesson_data.get('lesson','')}"),
-        ("Grade / Subject", f"Grade {lesson_data.get('grade','')} | {lesson_data.get('subject','')} | {lesson_data.get('duration','')}"),
-        ("Standards", " · ".join(lesson_data.get("standards", []))),
-        ("Objective", lesson_data.get("objective", "")),
-    ]
     for i, (label, val) in enumerate(meta):
         row = tbl.rows[i]
-        row.cells[0].merge(row.cells[0])
         _set_cell_bg(row.cells[0], NAVY)
         _cell_text(row.cells[0], label, bold=True, color=WHITE, size=9)
-        _set_col_width(row.cells[0], Inches(1.2))
+        _set_col_width(row.cells[0], Inches(1.3))
         _cell_text(row.cells[1], val, size=9)
-        _set_col_width(row.cells[1], Inches(5.8))
+        _set_col_width(row.cells[1], Inches(5.7))
 
-    doc.add_paragraph()
+    doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
 
 def _make_lesson_table(doc):
