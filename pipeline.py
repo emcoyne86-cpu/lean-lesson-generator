@@ -70,6 +70,7 @@ For each step:
   - tag: one tag from the list above
   - content: concise, action-oriented description of what happens (1-4 sentences, teacher voice)
   - timing: estimated minutes as an integer
+  - anticipated_response: for KEY QUESTION steps only — brief expected student answer (1-2 sentences); omit for all other steps
 
 Also extract:
   - lesson title
