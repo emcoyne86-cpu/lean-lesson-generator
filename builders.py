@@ -306,18 +306,18 @@ def build_selector_xlsx(selector_rows: list[dict], lesson_data: dict) -> bytes:
     ALL_R   = _xfill("D5F5E3"); ELL_R = _xfill("D6EAF8"); SCD_R = _xfill("E8DAEF")
     ALT_ALL = _xfill("EAF9F0"); ALT_ELL = _xfill("EBF5FB"); ALT_SCD = _xfill("F4ECF7")
 
-    headers = ["Step #", "Tag", "Step Description", "Scaffold?", "ALL", "ELL", "SCD", "Teacher Directive (optional)"]
-    col_ws  = [7, 18, 56, 12, 7, 7, 7, 44]
+    headers = ["Step #", "Tag", "Step Description", "ALL", "ELL", "SCD", "Teacher Directive (optional)"]
+    col_ws  = [7, 18, 68, 7, 7, 7, 44]
 
     for c, (h, w) in enumerate(zip(headers, col_ws), 1):
         cell = ws.cell(row=1, column=c, value=h)
         ws.column_dimensions[get_column_letter(c)].width = w
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        if c == 5:
+        if c == 4:
             cell.fill = ALL_F; cell.font = _xfont("FFFFFF", bold=True)
-        elif c == 6:
+        elif c == 5:
             cell.fill = ELL_F; cell.font = _xfont("FFFFFF", bold=True)
-        elif c == 7:
+        elif c == 6:
             cell.fill = SCD_F; cell.font = _xfont("FFFFFF", bold=True)
         else:
             cell.fill = NAVY_F; cell.font = _xfont("FFFFFF", bold=True)
@@ -331,16 +331,14 @@ def build_selector_xlsx(selector_rows: list[dict], lesson_data: dict) -> bytes:
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=8)
     ws.row_dimensions[1].height = 24
 
-    # Data validation
-    dv_yn  = DataValidation(type="list", formula1='"Yes,No"', allow_blank=True)
-    dv_pop = DataValidation(type="list", formula1='"Y,N"',    allow_blank=True)
-    ws.add_data_validation(dv_yn)
+    # Data validation — Y/N dropdown for population columns only
+    dv_pop = DataValidation(type="list", formula1='"Y,N"', allow_blank=True)
     ws.add_data_validation(dv_pop)
 
     for i, row in enumerate(selector_rows):
         r = i + 3  # offset for header rows
         alt = i % 2 == 1
-        vals = [row["step_num"], row["tag"], row["content"], row.get("scaffold",""),
+        vals = [row["step_num"], row["tag"], row["content"],
                 row.get("all",""), row.get("ell",""), row.get("scd",""), row.get("teacher_directive","")]
         for c, val in enumerate(vals, 1):
             cell = ws.cell(row=r, column=c, value=val)
@@ -350,14 +348,13 @@ def build_selector_xlsx(selector_rows: list[dict], lesson_data: dict) -> bytes:
             cell.font = _xfont("1A1A2E", bold=(c == 2))
         ws.row_dimensions[r].height = 40
 
-        # Color-code population cells
-        for c, (fill_yes, fill_alt) in enumerate([(ALL_R, ALT_ALL), (ELL_R, ALT_ELL), (SCD_R, ALT_SCD)], 5):
+        # Color-code population cells (now cols 4, 5, 6)
+        for c, (fill_yes, fill_alt) in enumerate([(ALL_R, ALT_ALL), (ELL_R, ALT_ELL), (SCD_R, ALT_SCD)], 4):
             ws.cell(row=r, column=c).fill = fill_alt if alt else fill_yes
             ws.cell(row=r, column=c).alignment = Alignment(horizontal="center", vertical="center")
 
-        # Apply validations
-        dv_yn.add(ws.cell(row=r, column=4))
-        for c in [5, 6, 7]:
+        # Apply validations to cols 4, 5, 6
+        for c in [4, 5, 6]:
             dv_pop.add(ws.cell(row=r, column=c))
 
     ws.freeze_panes = "A3"
@@ -392,18 +389,23 @@ def read_selector_xlsx(xlsx_bytes: bytes) -> list[dict]:
                for c in range(1, 9)]
 
     for r in range(header_row + 1, ws.max_row + 1):
-        vals = [ws.cell(row=r, column=c).value for c in range(1, 9)]
+        vals = [ws.cell(row=r, column=c).value for c in range(1, 8)]
         if not any(vals):
             continue
+        all_val = str(vals[3] or "").strip()
+        ell_val = str(vals[4] or "").strip()
+        scd_val = str(vals[5] or "").strip()
+        # Scaffold = Yes if any population is marked Y
+        scaffold = "Yes" if any(v.upper() == "Y" for v in [all_val, ell_val, scd_val]) else "No"
         rows.append({
-            "step_num":         vals[0],
-            "tag":              str(vals[1] or "").strip(),
-            "content":          str(vals[2] or "").strip(),
-            "scaffold":         str(vals[3] or "").strip(),
-            "all":              str(vals[4] or "").strip(),
-            "ell":              str(vals[5] or "").strip(),
-            "scd":              str(vals[6] or "").strip(),
-            "teacher_directive": str(vals[7] or "").strip(),
+            "step_num":          vals[0],
+            "tag":               str(vals[1] or "").strip(),
+            "content":           str(vals[2] or "").strip(),
+            "scaffold":          scaffold,
+            "all":               all_val,
+            "ell":               ell_val,
+            "scd":               scd_val,
+            "teacher_directive": str(vals[6] or "").strip(),
         })
     return rows
 
