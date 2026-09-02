@@ -130,9 +130,9 @@ def _make_header_table(doc, lesson_data):
         row = tbl.rows[i]
         _set_cell_bg(row.cells[0], NAVY)
         _cell_text(row.cells[0], label, bold=True, color=WHITE, size=9)
-        _set_col_width(row.cells[0], Inches(1.3))
+        _set_col_width(row.cells[0], Inches(1.0))
         _cell_text(row.cells[1], val, size=9)
-        _set_col_width(row.cells[1], Inches(5.7))
+        _set_col_width(row.cells[1], Inches(6.0))
 
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
