@@ -27,14 +27,21 @@ def _extract_pdf_text(pdf_bytes: bytes) -> str:
 
 def _parse_json(text: str) -> dict | list:
     """Extract JSON from a Claude response that may have surrounding prose."""
-    # Try to find JSON block
-    match = re.search(r'```json\s*([\s\S]+?)\s*```', text)
-    if match:
-        return json.loads(match.group(1))
-    # Try raw JSON
-    match = re.search(r'(\{[\s\S]+\}|\[[\s\S]+\])', text)
-    if match:
-        return json.loads(match.group(1))
+    # Try each strategy independently, catching decode errors along the way
+    patterns = [
+        r'```json\s*([\s\S]+?)\s*```',  # fenced json block
+        r'```\s*([\s\S]+?)\s*```',       # any fenced block
+        r'(\{[\s\S]+\})',                 # bare object
+        r'(\[[\s\S]+\])',                 # bare array
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            candidate = match.group(1).strip()
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
     raise ValueError(f"Could not parse JSON from response:\n{text[:500]}")
 
 
@@ -126,10 +133,11 @@ def generate_stage1(
                     f"Unit: {unit}\nLesson: {lesson}\n\n"
                     + text
                 ),
-            }
+            },
+            {"role": "assistant", "content": "{"},
         ],
     )
-    data = _parse_json(response.content[0].text)
+    data = _parse_json("{" + response.content[0].text)
 
     # Ensure metadata fields are set (Claude may override with extracted values)
     data.setdefault("grade", grade)
@@ -257,9 +265,12 @@ def generate_stage2(
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": "{"},
+        ],
     )
-    scaffold_data = _parse_json(response.content[0].text)
+    scaffold_data = _parse_json("{" + response.content[0].text)
 
     # Build lookup: step_num → scaffolds
     scaffold_map = {}
@@ -334,7 +345,10 @@ def generate_stage3(lesson_data: dict, api_key: str) -> list[dict]:
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=6000,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": "["},
+        ],
     )
-    slides = _parse_json(response.content[0].text)
+    slides = _parse_json("[" + response.content[0].text)
     return slides if isinstance(slides, list) else slides.get("slides", [])
