@@ -67,6 +67,13 @@ for key in ["lesson_data", "lean_docx", "selector_xlsx", "scaffolded_data",
     if key not in st.session_state:
         st.session_state[key] = None
 
+# Auto-load API key from Streamlit secrets if available
+if not st.session_state.api_key:
+    try:
+        st.session_state.api_key = st.secrets["ANTHROPIC_API_KEY"]
+    except Exception:
+        pass
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/book.png", width=60)
