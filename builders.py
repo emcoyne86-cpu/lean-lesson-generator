@@ -128,144 +128,161 @@ def _make_header_table(doc, lesson_data):
     doc.add_paragraph()
 
 
-def _section_header(doc, name, duration):
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(8)
-    p.paragraph_format.space_after = Pt(2)
-    run = p.add_run(f"{name.upper()}  ·  {duration}")
-    run.bold = True
-    run.font.size = Pt(11)
-    run.font.color.rgb = NAVY
+def _make_section_table(doc):
+    """One continuous table per section, fixed 3-column layout."""
+    gap = doc.add_paragraph()
+    gap.paragraph_format.space_before = Pt(6)
+    gap.paragraph_format.space_after  = Pt(0)
 
-
-def _step_row(doc, step, show_scaffold=False):
-    tbl = doc.add_table(rows=1, cols=3)
+    tbl = doc.add_table(rows=0, cols=3)
     tbl.style = "Table Grid"
     tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
 
-    # Prevent Word from auto-adjusting column widths
     tblPr = tbl._tbl.tblPr
     tblLayout = OxmlElement("w:tblLayout")
     tblLayout.set(qn("w:type"), "fixed")
     tblPr.append(tblLayout)
+    # Explicit table width = 7.0"
+    tblW = OxmlElement("w:tblW")
+    tblW.set(qn("w:w"), str(int(Inches(7.0).twips)))
+    tblW.set(qn("w:type"), "dxa")
+    tblPr.append(tblW)
 
-    row = tbl.rows[0]
-    tag_cell = row.cells[0]
-    content_cell = row.cells[1]
-    time_cell = row.cells[2]
+    return tbl
 
-    tag = step.get("tag", "")
+
+def _add_section_hdr_row(tbl, name, duration):
+    """Navy full-width header row as first row of the section table."""
+    row = tbl.add_row()
+    # Merge all 3 cells into one
+    row.cells[0].merge(row.cells[2])
+    cell = row.cells[0]
+    _set_cell_bg(cell, NAVY)
+    _set_col_width(cell, Inches(7.0))
+    cell.text = ""
+    p = cell.paragraphs[0]
+    r = p.add_run(f"{name.upper()}  —  {duration}")
+    r.bold = True
+    r.font.size = Pt(10)
+    r.font.color.rgb = WHITE
+    row.height_rule = 1  # exact
+    row.height = Pt(16)
+
+
+def _add_step_to_table(tbl, step, show_scaffold=False):
+    """Add one step row (and any scaffold rows) to the section table."""
+    row = tbl.add_row()
+    tag     = step.get("tag", "")
+    timing  = step.get("timing", "")
+    content = step.get("content", "")
     tag_color = TAG_COLORS.get(tag.upper(), NAVY)
-    _set_cell_bg(tag_cell, tag_color)
-    _cell_text(tag_cell, f"[{tag}]", bold=True, color=WHITE, size=8,
-               align=WD_ALIGN_PARAGRAPH.CENTER)
-    _set_col_width(tag_cell, COL_A)
 
-    _cell_text(content_cell, step.get("content", ""), size=9)
-    _set_col_width(content_cell, COL_B)
+    # ── Col A: tag badge ─────────────────────────────────────────────
+    a = row.cells[0]
+    _set_cell_bg(a, tag_color)
+    _set_col_width(a, COL_A)
+    a.text = ""
+    ap = a.paragraphs[0]
+    ap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    ar = ap.add_run(f"[{tag}]")
+    ar.bold = True; ar.font.size = Pt(7.5); ar.font.color.rgb = WHITE
 
-    timing = step.get("timing", "")
-    _cell_text(time_cell, f"{timing} min" if timing else "", size=9,
-               align=WD_ALIGN_PARAGRAPH.CENTER)
-    _set_col_width(time_cell, COL_C)
+    # ── Col B+C: content (merged) or B|C split for KEY QUESTION ──────
+    if tag.upper() == "KEY QUESTION":
+        b = row.cells[1]
+        _set_col_width(b, COL_B)
+        b.text = ""
+        bp = b.paragraphs[0]
+        br = bp.add_run(content)
+        br.font.size = Pt(9); br.font.italic = True
 
-    # Scaffold rows
+        c = row.cells[2]
+        _set_col_width(c, COL_C)
+        c.text = ""
+        cp = c.paragraphs[0]
+        cr1 = cp.add_run("Anticipated Response:\n")
+        cr1.bold = True; cr1.font.size = Pt(8); cr1.font.color.rgb = TEAL
+    else:
+        # Merge B + C → wide content cell
+        b = row.cells[1]
+        b.merge(row.cells[2])
+        merged = row.cells[1]
+        _set_col_width(merged, Inches(6.3))
+        merged.text = ""
+        mp = merged.paragraphs[0]
+        if timing:
+            mt = mp.add_run(f"(~{timing} min)  ")
+            mt.font.size = Pt(8); mt.font.italic = True
+            mt.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+        mc = mp.add_run(content)
+        mc.font.size = Pt(9)
+
+    # ── Scaffold rows ─────────────────────────────────────────────────
     if show_scaffold:
         for scaf in step.get("scaffolds", []):
+            sr = tbl.add_row()
             pop = scaf.get("population", "ALL")
-            bg = POP_BG.get(pop, ALL_BG)
+            bg  = POP_BG.get(pop, ALL_BG)
             txt = POP_TEXT.get(pop, ALL_TEXT)
 
-            scaf_row = tbl.add_row()
-            label_cell = scaf_row.cells[0]
-            scaf_cell  = scaf_row.cells[1]
-            note_cell  = scaf_row.cells[2]
+            sa = sr.cells[0]
+            _set_cell_bg(sa, bg); _set_col_width(sa, COL_A)
+            sa.text = ""
+            sap = sa.paragraphs[0]; sap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            sar = sap.add_run(POP_LABEL.get(pop, pop))
+            sar.bold = True; sar.font.size = Pt(7.5); sar.font.color.rgb = txt
 
-            _set_cell_bg(label_cell, bg)
-            _cell_text(label_cell, POP_LABEL.get(pop, pop), bold=True, color=txt,
-                       size=8, align=WD_ALIGN_PARAGRAPH.CENTER)
-            _set_col_width(label_cell, COL_A)
+            sb = sr.cells[1]; _set_col_width(sb, COL_B)
+            sb.text = ""
+            sbp = sb.paragraphs[0]
+            sbr1 = sbp.add_run(f"[{scaf.get('type','')}]  ")
+            sbr1.bold = True; sbr1.font.size = Pt(9); sbr1.font.color.rgb = txt
+            sbr2 = sbp.add_run(scaf.get("content", ""))
+            sbr2.font.size = Pt(9)
 
-            scaf_cell.text = ""
-            p = scaf_cell.paragraphs[0]
-            r1 = p.add_run(f"[{scaf.get('type','')}]  ")
-            r1.bold = True; r1.font.size = Pt(9); r1.font.color.rgb = txt
-            r2 = p.add_run(scaf.get("content", ""))
-            r2.font.size = Pt(9)
-            _set_col_width(scaf_cell, COL_B)
+            sc = sr.cells[2]; _set_col_width(sc, COL_C)
+            _cell_text(sc, scaf.get("teacher_note", ""), size=8, italic=True)
 
-            _cell_text(note_cell, scaf.get("teacher_note", ""), size=8, italic=True)
-            _set_col_width(note_cell, COL_C)
 
-    doc.add_paragraph().paragraph_format.space_after = Pt(2)
+def _build_doc(lesson_data: dict, label: str, show_scaffold: bool) -> bytes:
+    doc = Document()
+    for sec in doc.sections:
+        sec.top_margin    = Inches(0.75)
+        sec.bottom_margin = Inches(0.75)
+        sec.left_margin   = Inches(0.75)
+        sec.right_margin  = Inches(0.75)
+
+    # Title
+    tp = doc.add_paragraph()
+    tr = tp.add_run(lesson_data.get("title", label))
+    tr.bold = True; tr.font.size = Pt(16); tr.font.color.rgb = NAVY
+    tp.paragraph_format.space_after = Pt(4)
+
+    sp = doc.add_paragraph()
+    sr = sp.add_run(label.upper())
+    sr.bold = True; sr.font.size = Pt(9); sr.font.color.rgb = CORAL
+    sp.paragraph_format.space_after = Pt(6)
+
+    _make_header_table(doc, lesson_data)
+
+    for section_data in lesson_data.get("sections", []):
+        tbl = _make_section_table(doc)
+        _add_section_hdr_row(tbl, section_data["name"], section_data.get("duration", ""))
+        for step in section_data.get("steps", []):
+            _add_step_to_table(tbl, step, show_scaffold=show_scaffold)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf.read()
 
 
 def build_lean_docx(lesson_data: dict) -> bytes:
-    doc = Document()
-
-    # Page margins
-    for section in doc.sections:
-        section.top_margin    = Inches(0.75)
-        section.bottom_margin = Inches(0.75)
-        section.left_margin   = Inches(0.75)
-        section.right_margin  = Inches(0.75)
-
-    # Title
-    title_p = doc.add_paragraph()
-    title_r = title_p.add_run(lesson_data.get("title", "Lean Lesson"))
-    title_r.bold = True
-    title_r.font.size = Pt(16)
-    title_r.font.color.rgb = NAVY
-    title_p.paragraph_format.space_after = Pt(4)
-
-    sub_p = doc.add_paragraph()
-    sub_r = sub_p.add_run("LEAN LESSON")
-    sub_r.bold = True; sub_r.font.size = Pt(9); sub_r.font.color.rgb = CORAL
-    sub_p.paragraph_format.space_after = Pt(6)
-
-    _make_header_table(doc, lesson_data)
-
-    for section_data in lesson_data.get("sections", []):
-        _section_header(doc, section_data["name"], section_data.get("duration", ""))
-        for step in section_data.get("steps", []):
-            _step_row(doc, step, show_scaffold=False)
-
-    buf = io.BytesIO()
-    doc.save(buf)
-    buf.seek(0)
-    return buf.read()
+    return _build_doc(lesson_data, "Lean Lesson", show_scaffold=False)
 
 
 def build_scaffolded_docx(lesson_data: dict) -> bytes:
-    doc = Document()
-
-    for section in doc.sections:
-        section.top_margin    = Inches(0.75)
-        section.bottom_margin = Inches(0.75)
-        section.left_margin   = Inches(0.75)
-        section.right_margin  = Inches(0.75)
-
-    title_p = doc.add_paragraph()
-    title_r = title_p.add_run(lesson_data.get("title", "Scaffolded Lesson"))
-    title_r.bold = True; title_r.font.size = Pt(16); title_r.font.color.rgb = NAVY
-    title_p.paragraph_format.space_after = Pt(4)
-
-    sub_p = doc.add_paragraph()
-    sub_r = sub_p.add_run("SCAFFOLDED LESSON")
-    sub_r.bold = True; sub_r.font.size = Pt(9); sub_r.font.color.rgb = CORAL
-    sub_p.paragraph_format.space_after = Pt(6)
-
-    _make_header_table(doc, lesson_data)
-
-    for section_data in lesson_data.get("sections", []):
-        _section_header(doc, section_data["name"], section_data.get("duration", ""))
-        for step in section_data.get("steps", []):
-            _step_row(doc, step, show_scaffold=True)
-
-    buf = io.BytesIO()
-    doc.save(buf)
-    buf.seek(0)
-    return buf.read()
+    return _build_doc(lesson_data, "Scaffolded Lesson", show_scaffold=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
