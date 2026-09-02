@@ -126,6 +126,16 @@ def _make_header_table(doc, lesson_data):
     tbl.style = "Table Grid"
     tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
 
+    # Lock column widths — prevent Word auto-fit
+    tblPr = tbl._tbl.tblPr
+    tblLayout = OxmlElement("w:tblLayout")
+    tblLayout.set(qn("w:type"), "fixed")
+    tblPr.append(tblLayout)
+    tblW = OxmlElement("w:tblW")
+    tblW.set(qn("w:w"), str(int(Inches(7.0).twips)))
+    tblW.set(qn("w:type"), "dxa")
+    tblPr.append(tblW)
+
     for i, (label, val) in enumerate(meta):
         row = tbl.rows[i]
         _set_cell_bg(row.cells[0], NAVY)
