@@ -170,7 +170,6 @@ def generate_selector_rows(lesson_data: dict) -> list[dict]:
                 "step_num": step.get("step_num", ""),
                 "tag": step.get("tag", ""),
                 "content": step.get("content", ""),
-                "scaffold": "",   # teacher fills
                 "all": "",
                 "ell": "",
                 "scd": "",
