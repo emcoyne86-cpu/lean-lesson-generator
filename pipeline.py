@@ -77,7 +77,8 @@ Also extract:
   - objective (what students will be able to do, "I can..." format)
   - materials (specific texts, handouts, manipulatives)
 
-Return ONLY valid JSON — no prose before or after:
+Your response must be ONLY a valid JSON object — no explanation, no prose, no markdown fences. Start your response with { and end with }.
+
 {
   "title": "...",
   "grade": "...",
@@ -133,11 +134,10 @@ def generate_stage1(
                     f"Unit: {unit}\nLesson: {lesson}\n\n"
                     + text
                 ),
-            },
-            {"role": "assistant", "content": "{"},
+            }
         ],
     )
-    data = _parse_json("{" + response.content[0].text)
+    data = _parse_json(response.content[0].text)
 
     # Ensure metadata fields are set (Claude may override with extracted values)
     data.setdefault("grade", grade)
@@ -196,7 +196,8 @@ For each scaffold, produce:
   - content: the actual scaffold (e.g., the sentence frame text, anchor chart content, word bank list) — be specific and use lesson vocabulary
   - teacher_note: brief implementation tip (1-2 sentences)
 
-Return ONLY valid JSON:
+Your response must be ONLY a valid JSON object — no explanation, no prose, no markdown fences. Start your response with { and end with }.
+
 {
   "scaffolded_steps": [
     {
@@ -265,12 +266,9 @@ def generate_stage2(
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=4096,
-        messages=[
-            {"role": "user", "content": prompt},
-            {"role": "assistant", "content": "{"},
-        ],
+        messages=[{"role": "user", "content": prompt}],
     )
-    scaffold_data = _parse_json("{" + response.content[0].text)
+    scaffold_data = _parse_json(response.content[0].text)
 
     # Build lookup: step_num → scaffolds
     scaffold_map = {}
@@ -314,7 +312,8 @@ For each slide:
   - bg_color: one of "CORAL", "TEAL", "PURPLE", "AMBER", "GREEN", "PEACH", "WHITE"
   - speaker_notes: brief teacher note for this slide
 
-Return ONLY valid JSON array:
+Your response must be ONLY a valid JSON array — no explanation, no prose, no markdown fences. Start your response with [ and end with ].
+
 [
   {{
     "type": "title",
@@ -345,10 +344,7 @@ def generate_stage3(lesson_data: dict, api_key: str) -> list[dict]:
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=6000,
-        messages=[
-            {"role": "user", "content": prompt},
-            {"role": "assistant", "content": "["},
-        ],
+        messages=[{"role": "user", "content": prompt}],
     )
-    slides = _parse_json("[" + response.content[0].text)
+    slides = _parse_json(response.content[0].text)
     return slides if isinstance(slides, list) else slides.get("slides", [])
