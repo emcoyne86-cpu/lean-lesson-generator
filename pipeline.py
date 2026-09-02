@@ -79,8 +79,9 @@ Also extract:
   - key_vocabulary (list of key vocabulary words or phrases introduced in the lesson)
   - materials (specific texts, handouts, manipulatives)
 
-Your response must be ONLY a valid JSON object — no explanation, no prose, no markdown fences. Start your response with { and end with }.
+Respond with ONLY a JSON object wrapped in ```json``` fences. No other text.
 
+```json
 {
   "title": "...",
   "grade": "...",
@@ -198,8 +199,9 @@ For each scaffold, produce:
   - content: the actual scaffold (e.g., the sentence frame text, anchor chart content, word bank list) — be specific and use lesson vocabulary
   - teacher_note: brief implementation tip (1-2 sentences)
 
-Your response must be ONLY a valid JSON object — no explanation, no prose, no markdown fences. Start your response with { and end with }.
+Respond with ONLY a JSON object wrapped in ```json``` fences. No other text.
 
+```json
 {
   "scaffolded_steps": [
     {
@@ -314,8 +316,9 @@ For each slide:
   - bg_color: one of "CORAL", "TEAL", "PURPLE", "AMBER", "GREEN", "PEACH", "WHITE"
   - speaker_notes: brief teacher note for this slide
 
-Your response must be ONLY a valid JSON array — no explanation, no prose, no markdown fences. Start your response with [ and end with ].
+Respond with ONLY a JSON array wrapped in ```json``` fences. No other text.
 
+```json
 [
   {{
     "type": "title",
