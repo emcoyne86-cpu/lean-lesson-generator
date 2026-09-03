@@ -206,86 +206,39 @@ def generate_selector_rows(lesson_data: dict) -> list[dict]:
 
 # ── Stage 2.2 — Scaffolded Lesson ────────────────────────────────────────────
 
-SCAFFOLD_PROMPT = """You are an expert in differentiated instruction.
-
-Generate scaffolds for the lesson steps below. For each step that needs a scaffold, choose the best strategy for each population.
-
-Scaffold type options:
-  ALL  → Sentence Frame, Question Stems, Anchor Chart, Graphic Organizer, Gesture/TPR, Partner Roles
-  ELL  → Sentence Frame + Word Bank, Preview-View-Review, Home Language Bridge, TPR, Color-Coded Reference Card, Chunking + Glossing
-  SCD  → Partially Completed Template, Chunking + Visual Support, Reduced-Choice Response, Step-by-Step Visual Directions, Graphic Organizer, Object/Image Anchor
-
-For each scaffold, produce:
-  - population: "ALL", "ELL", or "SCD"
-  - type: scaffold type name
-  - content: the actual scaffold (e.g., the sentence frame text, anchor chart content, word bank list) — be specific and use lesson vocabulary
-  - teacher_note: brief implementation tip (1-2 sentences)
-
-Respond with ONLY a JSON object wrapped in ```json``` fences. No other text.
-
-```json
-{
-  "scaffolded_steps": [
-    {
-      "step_num": 1,
-      "scaffolds": [
-        {
-          "population": "ALL",
-          "type": "Sentence Frame",
-          "content": "I notice that _____ because _____.",
-          "teacher_note": "Display on board; model once before releasing students."
-        }
-      ]
-    }
-  ]
-}
-
-Only include steps that have scaffolds. Omit steps with no scaffolds.
-
-LESSON CONTEXT:
-Title: {title}
-Grade: {grade}  Subject: {subject}
-
-STEPS NEEDING SCAFFOLDS:
-{steps_json}
-"""
-
 def generate_stage2(
     lesson_data: dict,
     selector_rows: list[dict],
     api_key: str,
 ) -> dict:
-    """
-    Returns lesson_data enriched with scaffolds on applicable steps.
-    """
-    # Find steps that need scaffolds
-    scaffold_steps = [r for r in selector_rows if r.get("scaffold", "").lower() == "yes"]
+    """Returns lesson_data enriched with scaffolds on applicable steps."""
+    scaffold_steps = [
+        r for r in selector_rows
+        if any(r.get(p, "").upper() == "Y" for p in ["all", "ell", "scd"])
+    ]
     if not scaffold_steps:
-        return lesson_data  # nothing to scaffold
+        return lesson_data
 
-    # Build step context for Claude
-    steps_context = []
+    # Build plain-text step descriptions for the prompt
+    lines = []
     for r in scaffold_steps:
-        pops = []
-        if r.get("all", "").upper() == "Y":
-            pops.append("ALL")
-        if r.get("ell", "").upper() == "Y":
-            pops.append("ELL")
-        if r.get("scd", "").upper() == "Y":
-            pops.append("SCD")
-        steps_context.append({
-            "step_num": r["step_num"],
-            "tag": r["tag"],
-            "content": r["content"],
-            "populations": pops,
-            "teacher_directive": r.get("teacher_directive", ""),
-        })
+        pops = [p for p in ["ALL", "ELL", "SCD"] if r.get(p.lower(), "").upper() == "Y"]
+        lines.append(
+            f"Step {r['step_num']} [{r['tag']}] for {', '.join(pops)}:\n{r['content']}"
+        )
+    steps_text = "\n\n".join(lines)
 
-    prompt = SCAFFOLD_PROMPT.format(
-        title=lesson_data.get("title", ""),
-        grade=lesson_data.get("grade", ""),
-        subject=lesson_data.get("subject", ""),
-        steps_json=json.dumps(steps_context, indent=2),
+    prompt = (
+        "You are an expert in differentiated instruction.\n\n"
+        f"Lesson: {lesson_data.get('title','')} | Grade {lesson_data.get('grade','')} | {lesson_data.get('subject','')}\n\n"
+        "Generate one scaffold per population per step listed below.\n"
+        "Scaffold types for ALL: Sentence Frame, Question Stems, Anchor Chart, Graphic Organizer, Partner Roles\n"
+        "Scaffold types for ELL: Sentence Frame + Word Bank, Preview-View-Review, TPR, Home Language Bridge, Color-Coded Card\n"
+        "Scaffold types for SCD: Partially Completed Template, Chunking + Visual Support, Reduced-Choice Response, Step-by-Step Directions\n\n"
+        "Return a JSON array where each element has: step_num (integer), population (ALL/ELL/SCD), "
+        "type (scaffold name), content (the actual scaffold text), teacher_note (one sentence).\n\n"
+        "STEPS:\n" + steps_text + "\n\n"
+        "Return ONLY the JSON array, no other text."
     )
 
     client = _client(api_key)
@@ -294,14 +247,30 @@ def generate_stage2(
         max_tokens=4096,
         messages=[{"role": "user", "content": prompt}],
     )
-    scaffold_data = _parse_json(response.content[0].text)
 
-    # Build lookup: step_num → scaffolds
-    scaffold_map = {}
-    for entry in scaffold_data.get("scaffolded_steps", []):
-        scaffold_map[int(entry["step_num"])] = entry.get("scaffolds", [])
+    raw = response.content[0].text
+    result = _parse_json(raw)
 
-    # Deep-copy lesson_data and inject scaffolds
+    # Normalise: accept both a bare list and {"scaffolds": [...]}
+    if isinstance(result, dict):
+        for key in ("scaffolds", "scaffolded_steps", "items"):
+            if key in result:
+                result = result[key]
+                break
+        else:
+            result = list(result.values())[0] if result else []
+
+    # Group by step_num
+    scaffold_map: dict = {}
+    for item in (result or []):
+        snum = int(item.get("step_num", 0))
+        scaffold_map.setdefault(snum, []).append({
+            "population":   item.get("population", "ALL"),
+            "type":         item.get("type", ""),
+            "content":      item.get("content", ""),
+            "teacher_note": item.get("teacher_note", ""),
+        })
+
     import copy
     enriched = copy.deepcopy(lesson_data)
     for section in enriched.get("sections", []):
