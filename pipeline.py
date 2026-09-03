@@ -27,22 +27,44 @@ def _extract_pdf_text(pdf_bytes: bytes) -> str:
 
 def _parse_json(text: str) -> dict | list:
     """Extract JSON from a Claude response that may have surrounding prose."""
-    # Try each strategy independently, catching decode errors along the way
     patterns = [
         r'```json\s*([\s\S]+?)\s*```',  # fenced json block
         r'```\s*([\s\S]+?)\s*```',       # any fenced block
         r'(\{[\s\S]+\})',                 # bare object
         r'(\[[\s\S]+\])',                 # bare array
     ]
+    candidates = []
     for pattern in patterns:
         match = re.search(pattern, text)
         if match:
-            candidate = match.group(1).strip()
-            try:
-                return json.loads(candidate)
-            except json.JSONDecodeError:
-                continue
-    raise ValueError(f"Could not parse JSON from response:\n{text[:500]}")
+            candidates.append(match.group(1).strip())
+
+    for candidate in candidates:
+        # Try as-is
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+        # Try wrapping in {} (Claude sometimes omits outer braces)
+        try:
+            return json.loads('{' + candidate + '}')
+        except json.JSONDecodeError:
+            pass
+        # Try wrapping in [] (Claude sometimes omits outer array brackets)
+        try:
+            return json.loads('[' + candidate + ']')
+        except json.JSONDecodeError:
+            pass
+
+    # Last resort: try wrapping the whole response
+    stripped = text.strip()
+    for wrapped in ['{' + stripped + '}', '[' + stripped + ']']:
+        try:
+            return json.loads(wrapped)
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError(f"Could not parse JSON from Claude response. First 300 chars:\n{text[:300]}")
 
 
 # ── Stage 1 — Lean Lesson ─────────────────────────────────────────────────────
